@@ -1,6 +1,5 @@
 from flask import render_template, request
 from app import app
-import functions as fu
 import functions2 as fu2
 import time
 
@@ -69,50 +68,6 @@ def eg_output():
     negSent = sentiment[1]
 
     return render_template("egOutput.html", eg_postTitle = eg_postTitle, eg_commentForm = eg_commentForm, eg_score = eg_score, eg_prob = eg_prob, sentiment = sentiment, comLength = comLength, timeDiffCur = timeDiffCur, timeDiffC = timeDiffC, eg_comment = eg_comment, post_URL = post_URL, eg_subreddit = eg_subreddit, subLinks = subLinks, eg_result = eg_result, posSent = posSent, negSent = negSent)
-
-@app.route("/output")
-def output():
-    recentPosts = fu.recentPosts()
-
-    post = request.args.get('post')
-    comment = request.args.get('comment')
-
-    postAtt = fu.rcommentLink(post)
-    postTitle = postAtt.title
-    post_URL = postAtt.permalink
-
-    the_subreddit = ''
-    the_subreddit = fu.subreddit(post)
-    
-    the_post = ''
-    the_post = post
-    
-    your_comment = ''
-    your_comment = comment
-
-    features = fu.features(recentPosts, the_subreddit, post, comment, time.time())
-
-    timePost = ''
-    timePost = fu.timePresent(features[4])
-
-    comLength = ''
-    comLength = fu.cLength(features[5])
-
-    sentiment = ''
-    sentiment = fu.sentiment(your_comment)
-
-    prob = ''
-    prob = fu.probability(features)
-    
-    the_result = ''
-    the_result = fu.probFeedback(features)
-
-    commentForm = fu.commentSent(your_comment)
-    
-    subLinks = fu.rsubreddits()
-
-
-    return render_template("output.html", postTitle = postTitle, commentForm = commentForm, prob = prob, timePost = timePost, comLength = comLength, sentiment = sentiment, the_subreddit = the_subreddit, the_post = the_post, your_comment = your_comment, subLinks = subLinks, the_result = the_result, post_URL = post_URL)
 
 @app.route("/output2")
 def output2():
