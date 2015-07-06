@@ -1,0 +1,178 @@
+---
+title: "reddit analysis"
+output: html_document
+---
+
+```{r}
+library(ggplot2)
+library(caret)
+library(plyr)
+library(scales)
+```
+
+```{r}
+setwd('/Users/insightfu/Desktop/Insight/Insight Project/Week 4/regroup 2/')
+load('02 reddit.RData')
+```
+
+Sentiment Score by Subreddit
+
+```{r}
+sentMeans = ddply(redditTrain, c('subreddit'), summarise, mean = mean(sentScore, na.rm = T), sd = sd(sentScore, na.rm = T), n = length(subreddit), se = sd/sqrt(n), sentiment = "Sentiment Score")
+```
+
+```{r}
+ggplot(sentMeans) +
+  aes(x = subreddit, y = mean, fill = subreddit) +
+  geom_bar(stat = "identity", position = "dodge") +
+  aes(ymax = mean + se, ymin = mean - se) +
+  geom_errorbar(position = 'dodge', width = .25) +
+  geom_abline(intercept = 0, slope = 0) +
+  coord_cartesian(ylim = c(-.5, 2)) +
+  scale_y_continuous(breaks = seq(-.5, 2, .5)) +
+  xlab('') +
+  ylab('Average Sentiment Score\n(Positive minus Negative)') +
+  theme_classic() +
+  theme(legend.position = 'none') +
+  theme(text = element_text(size = 20, family = "Verdana"))
+```
+
+Comment Score by Sentiment
+
+```{r}
+sentMeans3 = ddply(redditTrain, c('onevote2'), summarise, mean = mean(sentScore, na.rm = T), sd = sd(sentScore, na.rm = T), n = length(subreddit), se = sd/sqrt(n), sentiment = "SentScore")
+```
+
+```{r}
+ggplot(sentMeans3[sentMeans3$onevote2 %in% c('Downvoted', 'Upvoted'),]) +
+  aes(x = onevote2, y = mean, fill = onevote2) +
+  geom_bar(stat = "identity", position = "dodge") +
+  aes(ymax = mean + se, ymin = mean - se) +
+  geom_errorbar(position = 'dodge', width = .25) +
+  geom_abline(intercept = 0, slope = 0) +
+  coord_cartesian(ylim = c(-.2, .4)) +
+  scale_y_continuous(breaks = seq(-.2, .4, .1)) +
+  xlab('') +
+  ylab('Average Sentiment Score\n(Positive minus Negative)') +
+  theme_classic() +
+  theme(legend.position = 'none') +
+  theme(text = element_text(size = 20, family = "Verdana"))
+```
+
+Comment Score by Sentiment by Subreddit
+
+```{r}
+sentMeans2 = ddply(redditTrain, c('subreddit', 'onevote'), summarise, mean = mean(sentScore, na.rm = T), sd = sd(sentScore, na.rm = T), n = length(subreddit), se = sd/sqrt(n))
+```
+
+```{r}
+ggplot(sentMeans2[sentMeans2$onevote %in% c('Downvoted', 'Upvoted') & sentMeans2$subreddit %in% c('GirlGamers', 'politics'),]) +
+  aes(x = onevote, y = mean, fill = subreddit) +
+  geom_bar(stat = "identity", position = "dodge") +
+  aes(ymax = mean + se, ymin = mean - se) +
+  geom_errorbar(position = 'dodge', width = .25) +
+  geom_abline(intercept = 0, slope = 0) +
+  coord_cartesian(ylim = c(-.2, .4)) +
+  scale_y_continuous(breaks = seq(-.2, .4, .2)) +
+  xlab('') +
+  ylab('Average Sentiment Score\n(Positive minus Negative)') +
+  theme_classic() +
+  theme(legend.position = 'none') +
+  theme(text = element_text(size = 20, family = "Verdana")) +
+  facet_wrap(~subreddit)
+```
+
+Recency
+
+```{r}
+commentMeans2 = ddply(redditTrain, c('recencyHrCat', 'onevote'), summarise,
+                     mean = mean(commentScore, na.rm = T),
+                     sd = sd(commentScore, na.rm = T),
+                     n = length(recencyHrCat),
+                     se = sd/sqrt(n))
+```
+
+```{r}
+ggplot() +
+  geom_bar(data = commentMeans2[commentMeans2$onevote == 'Upvoted',], 
+           aes(x = recencyHrCat, y = mean, fill = onevote), stat = 'identity') +
+  geom_bar(data = commentMeans2[commentMeans2$onevote == 'Downvoted',], 
+           aes(x = recencyHrCat, y = mean, fill = onevote), stat = 'identity') +
+  geom_hline(yintercept = 0) +
+  coord_cartesian(xlim = c(0, 36)) +
+  scale_y_continuous(labels = comma) +
+  ylab('Comment Score\n(Upvotes minus Downvotes)') +
+  xlab('Time Since Post Was Made (hrs)') +
+  scale_fill_discrete(name = "", labels = c('Downvoted Comments', 'Upvoted Comments')) +
+  theme_classic() +
+  theme(legend.position = 'top') +
+  theme(text = element_text(size = 20, family = "Verdana"))
+```
+
+Logistic Regression Model
+
+```{r}
+model1 = glm(extremeVotes ~ subreddit + recencyMin + commentLength + posScore + negScore + commentLevel2, data = redditTrain, family = "binomial")
+summary(model1)
+```
+
+```{r}
+predicted1 = predict(model1, redditTest, type = 'response')
+threshold = 0.5
+pred1 = factor(ifelse(predicted1 > threshold, 1, 0))
+```
+
+```{r}
+all = data.frame(pred1 = pred1, extremeVotes = redditTest$extremeVotes, commentScore = redditTest$commentScore)
+all$allVotes = ifelse(all$commentScore > 0, 1, 0)
+all$mostVotes = ifelse(all$commentScore > 1, 1, ifelse(all$commentScore <= 0, 0, NA))
+```
+
+```{r}
+extreme = subset(all, !is.na(all$extremeVotes))
+confusionMatrix(extreme$pred1, extreme$extremeVotes)
+```
+
+```{r}
+ctable <- as.table(matrix(c(2953, 1426, 941, 2142), nrow = 2, byrow = TRUE))
+rownames(ctable) = c("Actual Upvotes", "Actual Downvotes")
+colnames(ctable) = c("Predicted Upvotes", "Predicted Downvotes")
+t(ctable)
+fourfoldplot(ctable,
+             conf.level = 0, margin = 1, main = "Confusion Matrix")
+```
+
+Comment Level
+
+```{r}
+ggplot(redditTrain) +
+  aes(x = subreddit, y = log(as.numeric(commentLevel2)), fill = subreddit) +
+  geom_boxplot() +
+  stat_summary(fun.y = mean, colour = "red", geom = "point", shape = 18, size = 5, show_guide = FALSE) +
+  xlab('') +
+  ylab('Comment Level (log-transformed)') +
+  theme_classic() +
+  theme(legend.position = 'none') +
+  theme(text = element_text(size = 30))
+```
+
+```{r}
+CPUs = ddply(CPU, c('subreddit'), summarise, 
+             mean = mean(numComments),
+             sd = sd(numComments),
+             n = length(numComments),
+             se = sd/sqrt(n)); CPUs
+```
+
+```{r}
+ggplot(CPUs) +
+  aes(x = subreddit, y = mean, fill = subreddit) +
+  geom_bar(stat = 'identity') +
+  geom_errorbar(aes(ymax = mean + se, ymin = mean - se, width = .25)) +
+  coord_cartesian(ylim = c(0, 10)) +
+  xlab('') +
+  ylab('Number of Comments per User') +
+  theme_classic() +
+  theme(legend.position = 'none') +
+  theme(text = element_text(size = 30))
+```
